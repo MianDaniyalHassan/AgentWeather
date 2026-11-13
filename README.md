@@ -272,8 +272,8 @@ Built as part of the **10Pearls SHINE Internship, Cohort 10 (2026)**.
 
 ## 👤 Author
 
-**Daniyal**
-[GitHub](https://github.com/MianDaniyalHassan) · [LinkedIn](#)
+**Mian Daniyal Hassan**
+
 
 ---
 
