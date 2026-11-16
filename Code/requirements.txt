@@ -1,0 +1,11 @@
+pandas
+requests
+python-dotenv
+scikit-learn
+hopsworks[python]
+langgraph
+langchain-groq
+streamlit
+shap
+pyarrow
+tzdata
