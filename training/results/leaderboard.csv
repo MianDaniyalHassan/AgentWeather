@@ -1,0 +1,9 @@
+target,best_model,val_rmse,test_rmse,naive_test_rmse,test_gain_vs_naive_%,beats_naive_on_test
+target_aqi,ridge,23.893,25.275,31.031,18.6,True
+target_humidity,ridge,12.111,9.16,9.662,5.2,True
+target_precip,lstm,0.44,0.678,0.922,26.5,True
+target_temp,ridge,2.193,2.14,2.209,3.2,True
+target_uv,random_forest,0.516,0.589,0.583,-1.1,False
+target_wind_dir,lstm,79.814,73.481,77.342,5.0,True
+target_wind_speed,ridge,3.364,3.199,4.022,20.5,True
+target_rain,lstm,0.041,0.091,,,

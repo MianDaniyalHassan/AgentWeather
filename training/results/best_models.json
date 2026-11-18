@@ -1,0 +1,34 @@
+{
+  "target_aqi": {
+    "model": "ridge",
+    "val_rmse": 23.89309167826445
+  },
+  "target_humidity": {
+    "model": "ridge",
+    "val_rmse": 12.110877932570665
+  },
+  "target_precip": {
+    "model": "lstm",
+    "val_rmse": 0.4395562780596754
+  },
+  "target_temp": {
+    "model": "ridge",
+    "val_rmse": 2.192620801086142
+  },
+  "target_uv": {
+    "model": "random_forest",
+    "val_rmse": 0.5161153968344067
+  },
+  "target_wind_dir": {
+    "model": "lstm",
+    "val_rmse": 79.813784274486
+  },
+  "target_wind_speed": {
+    "model": "ridge",
+    "val_rmse": 3.3636177046448856
+  },
+  "target_rain": {
+    "model": "lstm",
+    "val_brier": 0.0406290031969547
+  }
+}
