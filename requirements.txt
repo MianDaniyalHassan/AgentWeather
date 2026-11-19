@@ -9,3 +9,7 @@ streamlit
 shap
 pyarrow
 tzdata
+matplotlib
+ipykernel
+torch
+statsmodels
