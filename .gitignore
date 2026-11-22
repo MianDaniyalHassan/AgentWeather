@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 data/
 .ipynb_checkpoints/
+training/cache/
+training/models/
+training/results/
