@@ -92,19 +92,19 @@ def build(tgt, name, train, feats):
     return d
 
 
-def score(folder, lab, part, tgt):
+def score(folder, lab, part, tgt, thr=None):
     """Metrics of a saved model on `part`. Lower primary is better."""
     p = predict.predict(folder, lab).reindex(part["time"]).values
     y = part[tgt].values
     if tgt == "target_rain":
         yi = y.astype(int)
-        grid = [i / 100 for i in range(5, 60, 5)]
-        thr = max(grid, key=lambda t: metrics.rain(yi, (p >= t).astype(int))["f1"])
+        if thr is None:
+            grid = [i / 100 for i in range(5, 60, 5)]
+            thr = max(grid, key=lambda t: metrics.rain(yi, (p >= t).astype(int))["f1"])
         s = metrics.rain(yi, (p >= thr).astype(int), p)
         return {**s, "threshold": thr, "primary": s["brier"]}
     s = metrics.wind_dir(y, p) if tgt == "target_wind_dir" else metrics.regression(y, p)
     return {**s, "primary": s["rmse"]}
-
 
 def incumbent(mr, name):
     try:
@@ -145,7 +145,8 @@ def main():
         print(f"\n[{tgt}] winner {name} (val {csv_val:.4f})"
               + (f" | overall best on val was {overall}, not deployed" if overall != name else ""))
         folder = build(tgt, name, train, feats)
-        sv, st = score(folder, lab, val, tgt), score(folder, lab, test, tgt)
+        sv = score(folder, lab, val, tgt)
+        st = score(folder, lab, test, tgt, thr=sv.get("threshold"))
         m = predict.manifest(folder)
         if tgt == "target_rain":
             m["rain_threshold"] = sv["threshold"]
@@ -173,7 +174,7 @@ def main():
                     name=reg_name, metrics=keys,
                     description=f"{name} for {tgt}; lower val {'brier' if tgt == 'target_rain' else 'rmse'} is better",
                 )
-                mdl.save(str(folder))
+                mdl.save(str(folder), keep_original_files=True)
                 row["action"] = "registered"
             else:
                 row["action"] = "kept_incumbent"
@@ -184,6 +185,15 @@ def main():
     RES.mkdir(exist_ok=True)
     path = RES / "registry_log.csv"
     out.to_csv(path, mode="a", header=not path.exists(), index=False)
+    if not a.no_registry:
+        from ingestion.store import get_feature_store, get_registry_group, stamp
+
+        rl = out.assign(time=pd.to_datetime(out["time"]))
+        get_registry_group(get_feature_store()).insert(stamp(rl), write_options={"wait_for_job": False})
+
+        from training import reference
+
+        reference.write(train)
     pd.set_option("display.width", 200)
     print("\n", out.round(4).to_string(index=False))
 

@@ -15,4 +15,4 @@ HOPSWORKS_KEY = os.getenv("HOPSWORKS_API_KEY")
 HOPSWORKS_PROJECT = os.getenv("HOPSWORKS_PROJECT")
 AQICN_STATION = os.getenv("AQICN_STATION")
 
-LLM_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+LLM_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]

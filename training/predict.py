@@ -20,6 +20,19 @@ from numpy.lib.stride_tricks import sliding_window_view
 from ingestion.features import TARGET_SRC
 from training import data
 
+TARGETS = [
+    "target_aqi", "target_temp", "target_precip", "target_humidity",
+    "target_uv", "target_wind_speed", "target_wind_dir", "target_rain",
+]
+
+CLIP = {
+    "target_precip": (0, None),
+    "target_humidity": (0, 100),
+    "target_uv": (0, None),
+    "target_wind_speed": (0, None),
+    "target_rain": (0, 1),
+}
+
 
 def save(folder, manifest, estimator=None):
     d = Path(folder)
@@ -83,3 +96,36 @@ def predict(folder, df):
         return pd.Series(v, index=t.iloc[seq - 1 :])
 
     raise ValueError(f"unknown model kind: {kind}")
+
+
+def load_registry_models(project):
+    mr = project.get_model_registry()
+    folders = {}
+    for tgt in TARGETS:
+        models = mr.get_models("best_" + tgt.removeprefix("target_"))
+        folders[tgt] = max(models, key=lambda m: m.version).download()
+    return folders
+
+
+def forecast(folders, df):
+    df = df.sort_values("time").reset_index(drop=True)
+    gaps = int(df["time"].diff().dropna().ne(pd.Timedelta(hours=1)).sum())
+    if gaps:
+        raise ValueError(f"{gaps} non-hourly gaps in feature rows")
+    last = df["time"].iloc[-1]
+    out = {}
+    for tgt, folder in folders.items():
+        v = float(predict(folder, df).loc[last])
+        lo, hi = CLIP.get(tgt, (None, None))
+        if lo is not None:
+            v = max(v, lo)
+        if hi is not None:
+            v = min(v, hi)
+        out[tgt] = v
+    thr = manifest(folders["target_rain"])["rain_threshold"]
+    return {
+        "origin_time": last,
+        "target_time": last + pd.Timedelta(hours=24),
+        "forecast": out,
+        "rain_expected": out["target_rain"] >= thr,
+    }
