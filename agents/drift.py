@@ -32,8 +32,8 @@ MIN_ORIGINS = 48          # scored forecasts needed before model drift is judged
 # Provisional. Hourly data is strongly autocorrelated, so 14 days is only ~14
 # independent days and PSI is biased upward (about bins-1 over that count). The
 # textbook 0.25 fired on 60% of 2026 windows, so these are set from --backtest.
-PSI_THRESHOLD = 0.5
-PSI_MIN_GROUPS = 2
+PSI_THRESHOLD = 0.75
+PSI_MIN_GROUPS = 3
 GROUP = {
     "us_aqi": "air", "pm10": "air", "pm2_5": "air",
     "temperature_2m": "thermal", "relative_humidity_2m": "thermal", "uv_index": "thermal",
