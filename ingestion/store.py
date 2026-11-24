@@ -10,7 +10,16 @@ PRECOMBINE = "ingested_at"
 
 @lru_cache(maxsize=1)
 def get_project():
-    return hopsworks.login(api_key_value=HOPSWORKS_KEY, project=HOPSWORKS_PROJECT)
+    delay = 10
+    for attempt in range(1, 6):
+        try:
+            return hopsworks.login(api_key_value=HOPSWORKS_KEY, project=HOPSWORKS_PROJECT)
+        except Exception as e:
+            if attempt == 5:
+                raise
+            print(f"hopsworks login failed ({type(e).__name__}), retry {attempt} in {delay}s")
+            time.sleep(delay)
+            delay *= 2
 
 
 def get_feature_store():
