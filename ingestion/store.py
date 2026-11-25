@@ -32,6 +32,18 @@ def stamp(df):
     return df
 
 
+def insert_retry(fg, df, tries=3, delay=20):
+    for i in range(1, tries + 1):
+        try:
+            fg.insert(stamp(df), write_options={"wait_for_job": False})
+            return True
+        except Exception as e:
+            print(f"insert into {fg.name} failed ({type(e).__name__}) {i}/{tries}")
+            if i < tries:
+                time.sleep(delay * i)
+    return False
+
+
 def get_feature_group(fs):
     return fs.get_or_create_feature_group(
         name="weather_features",

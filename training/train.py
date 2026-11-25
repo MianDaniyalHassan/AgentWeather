@@ -106,6 +106,7 @@ def score(folder, lab, part, tgt, thr=None):
     s = metrics.wind_dir(y, p) if tgt == "target_wind_dir" else metrics.regression(y, p)
     return {**s, "primary": s["rmse"]}
 
+
 def incumbent(mr, name):
     try:
         models = mr.get_models(name)
@@ -186,13 +187,11 @@ def main():
     path = RES / "registry_log.csv"
     out.to_csv(path, mode="a", header=not path.exists(), index=False)
     if not a.no_registry:
-        from ingestion.store import get_feature_store, get_registry_group, stamp
-
-        rl = out.assign(time=pd.to_datetime(out["time"]))
-        get_registry_group(get_feature_store()).insert(stamp(rl), write_options={"wait_for_job": False})
-
+        from ingestion.store import get_feature_store, get_registry_group, insert_retry
         from training import reference
 
+        rl = out.assign(time=pd.to_datetime(out["time"]))
+        insert_retry(get_registry_group(get_feature_store()), rl)
         reference.write(train)
     pd.set_option("display.width", 200)
     print("\n", out.round(4).to_string(index=False))

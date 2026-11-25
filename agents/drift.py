@@ -1,7 +1,9 @@
 """Drift Agent (brief section 6): runs hourly after the Forecast and Alert agents.
 
-Data drift   PSI of the last 14 days of each base feature against the training
-             split, using the calendar months the live window falls in.
+Data drift   PSI of the last 14 days of each monitored feature against the
+             training split, using the calendar months the live window falls in.
+             Precipitation is excluded: most hours are dry, so its quantile bins
+             collapse and PSI cannot move. Rain is covered by model drift.
 Model drift  recent forecast error (ledger vs actuals) against the validation
              error stored with the registered model.
 
@@ -11,7 +13,8 @@ PM2.5 move together, so they count once). Then the agent alerts the team and
 dispatches the training workflow, at most once per COOLDOWN_H.
 Every check is one row in drift_log.
 
-    python -m agents.drift --backtest   # how often would data drift fire on history?
+    python -m agents.drift --backtest   # false-positive rate on history
+    python -m agents.drift --control    # does an injected shift actually fire?
 """
 import argparse
 import json
@@ -28,20 +31,16 @@ from training import metrics, reference
 
 DATA_WINDOW_H = 24 * 14
 MODEL_WINDOW_H = 24 * 7
-MIN_ORIGINS = 48          # scored forecasts needed before model drift is judged
-# Provisional. Hourly data is strongly autocorrelated, so 14 days is only ~14
-# independent days and PSI is biased upward (about bins-1 over that count). The
-# textbook 0.25 fired on 60% of 2026 windows, so these are set from --backtest.
+MIN_ORIGINS = 48
 PSI_THRESHOLD = 0.75
 PSI_MIN_GROUPS = 3
 GROUP = {
     "us_aqi": "air", "pm10": "air", "pm2_5": "air",
     "temperature_2m": "thermal", "relative_humidity_2m": "thermal", "uv_index": "thermal",
     "wind_speed_10m": "wind", "wind_direction_10m": "wind",
-    "precipitation": "rain",
 }
-# recent error / validation error. Precipitation and rain sit higher because
-# their test error was already 1.5x and 2.2x the validation error (season shift).
+DATA_FEATURES = [c for c in BASE if c in GROUP]
+CONTROL_FEATURES = ("temperature_2m", "us_aqi", "wind_speed_10m")
 RATIO = {"default": 1.5, "precip": 2.0, "rain": 3.0}
 COOLDOWN_H = 24
 NOTIFIED = {"retrain_triggered", "dispatch_failed", "alert_only"}
@@ -63,7 +62,7 @@ def data_drift(history, ref):
     live = history.tail(DATA_WINDOW_H)
     share = live["time"].dt.month.value_counts(normalize=True)
     rows = []
-    for col in BASE:
+    for col in DATA_FEATURES:
         r = ref[ref["feature"] == col].set_index("month")
         months = [m for m in share.index if m in r.index]
         if not months:
@@ -197,7 +196,6 @@ def run(history, project):
 
 
 def windows(df, ref, step=24):
-    """PSI per feature for every 14-day window of df, one window per `step` hours."""
     out = []
     for end in range(DATA_WINDOW_H, len(df) + 1, step):
         win = df.iloc[end - DATA_WINDOW_H : end]
@@ -209,13 +207,19 @@ def groups_over(bt, thr):
     return sum((bt[[c for c in bt if GROUP[c] == g]] >= thr).any(axis=1) for g in set(GROUP.values()))
 
 
+def fire_rate(bt, thr=None, groups=None):
+    thr = PSI_THRESHOLD if thr is None else thr
+    groups = PSI_MIN_GROUPS if groups is None else groups
+    return float((groups_over(bt, thr) >= groups).mean())
+
+
 def report(bt, label):
     thrs = [0.25, 0.5, 0.75, 1.0]
     print(f"\n=== {label}: {len(bt)} windows ===")
     print(f"share of windows over PSI {PSI_THRESHOLD}, per feature:")
     print((bt >= PSI_THRESHOLD).mean().round(3).to_string())
     table = {
-        f"PSI >= {t}": {f">= {k} groups": f"{(groups_over(bt, t) >= k).mean():.1%}" for k in (2, 3)}
+        f"PSI >= {t}": {f">= {k} groups": f"{fire_rate(bt, t, k):.1%}" for k in (2, 3)}
         for t in thrs
     }
     print("\nshare of windows where drift would fire:")
@@ -223,9 +227,6 @@ def report(bt, label):
 
 
 def backtest():
-    """Calibration. 2026 windows against the training reference (what production sees),
-    and a null test: 2025 windows against a 2024-only reference, both inside the
-    training split, where no real change was injected."""
     from training import data
 
     train, val, test = data.split(data.load())
@@ -241,8 +242,40 @@ def backtest():
     print(f"\nwrote {path}")
 
 
+def control(shifts=(0.0, 1.0, 1.5, 2.0), step=24):
+    from training import data
+
+    train, val, test = data.split(data.load())
+    ref = reference.build(train)
+    later = pd.concat([val, test]).reset_index(drop=True)
+    sd = train[list(CONTROL_FEATURES)].std()
+    rows = []
+    for k in shifts:
+        df = later.copy()
+        for col in CONTROL_FEATURES:
+            df[col] = df[col] + k * sd[col]
+        bt = windows(df, ref, step)
+        rows.append(
+            {
+                "shift_sd": k,
+                "windows": len(bt),
+                **{f"fires@{t}": f"{fire_rate(bt, t):.1%}" for t in (0.5, 0.75)},
+                **{f"{c}>=0.75": f"{(bt[c] >= PSI_THRESHOLD).mean():.1%}" for c in CONTROL_FEATURES},
+            }
+        )
+    pd.set_option("display.width", 220)
+    print(f"shifted {', '.join(CONTROL_FEATURES)} by k training std; rule needs {PSI_MIN_GROUPS} groups")
+    print(pd.DataFrame(rows).to_string(index=False))
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--backtest", action="store_true")
+    ap.add_argument("--control", action="store_true")
     a = ap.parse_args()
-    backtest() if a.backtest else ap.print_help()
+    if a.backtest:
+        backtest()
+    elif a.control:
+        control()
+    else:
+        ap.print_help()

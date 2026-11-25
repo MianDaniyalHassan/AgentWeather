@@ -12,7 +12,7 @@ from ingestion.store import (
     get_feature_store,
     get_ledger_group,
     get_reports_group,
-    stamp,
+    insert_retry,
 )
 from training import predict
 
@@ -36,7 +36,7 @@ def ledger_frame(result, folders):
 
 def write_ledger(result, folders):
     df = ledger_frame(result, folders)
-    get_ledger_group(get_feature_store()).insert(stamp(df), write_options={"wait_for_job": False})
+    insert_retry(get_ledger_group(get_feature_store()), df)
     return df
 
 
@@ -45,7 +45,7 @@ def write_drift(rows):
         return
     df = pd.DataFrame(rows)
     df["time"] = pd.Timestamp(local_hour())
-    get_drift_group(get_feature_store()).insert(stamp(df), write_options={"wait_for_job": False})
+    insert_retry(get_drift_group(get_feature_store()), df)
 
 
 def write_alerts(origin, alerts, text, provider):
@@ -56,12 +56,12 @@ def write_alerts(origin, alerts, text, provider):
         workers=text["workers"],
         provider=provider,
     )
-    get_alerts_group(get_feature_store()).insert(stamp(df), write_options={"wait_for_job": False})
+    insert_retry(get_alerts_group(get_feature_store()), df)
 
 
 def write_report(origin, text, provider):
     df = pd.DataFrame([{"time": origin, "report": text, "provider": provider}])
-    get_reports_group(get_feature_store()).insert(stamp(df), write_options={"wait_for_job": False})
+    insert_retry(get_reports_group(get_feature_store()), df)
 
 
 class CallLog:
@@ -94,5 +94,5 @@ class CallLog:
         if not self.rows:
             return
         df = pd.DataFrame(self.rows)
-        get_agent_calls_group(get_feature_store()).insert(stamp(df), write_options={"wait_for_job": False})
+        insert_retry(get_agent_calls_group(get_feature_store()), df)
         self.rows = []

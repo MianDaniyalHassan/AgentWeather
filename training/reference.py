@@ -16,7 +16,7 @@ import pandas as pd
 from ingestion.features import BASE
 
 BINS = 5
-EPS = 0.005  # floor on bin shares so an empty bin does not blow up the PSI
+EPS = 0.005
 
 
 def proportions(x, edges):
@@ -51,12 +51,10 @@ def build(train):
 
 
 def write(train):
-    from ingestion.store import get_feature_store, get_reference_group, stamp
+    from ingestion.store import get_feature_store, get_reference_group, insert_retry
 
     ref = build(train).assign(time=pd.Timestamp.now())
-    get_reference_group(get_feature_store()).insert(
-        stamp(ref), write_options={"wait_for_job": False}
-    )
+    insert_retry(get_reference_group(get_feature_store()), ref)
     return ref
 
 
