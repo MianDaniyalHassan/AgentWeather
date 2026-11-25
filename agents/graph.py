@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 
 from agents import drift, logs, rules
 from agents.llm import generate
-from ingestion.store import get_alerts_group, get_feature_group, get_project
+from ingestion.store import get_alerts_group, get_feature_group, get_project, get_reports_group
 from training import predict
 
 REPORT_HOUR = 7
@@ -132,6 +132,19 @@ def previous_alerts(origin):
     return set(zip(last["metric"], last["level"]))
 
 
+def report_missing(origin):
+    if origin.hour < REPORT_HOUR:
+        return False
+    try:
+        df = get_reports_group(get_project().get_feature_store()).read()
+    except Exception:
+        return False
+    if df.empty:
+        return True
+    t = pd.to_datetime(df["time"]).dt.tz_localize(None)
+    return not (t.dt.date == origin.date()).any()
+
+
 def forecast_node(state):
     project = get_project()
     fs = project.get_feature_store()
@@ -187,8 +200,9 @@ def drift_node(state):
 
 
 def route(state):
-    daily = state["forecast"]["origin_time"].hour == REPORT_HOUR
-    return "report" if daily or state.get("new_alert") else "drift"
+    origin = state["forecast"]["origin_time"]
+    due = origin.hour == REPORT_HOUR or state.get("new_alert") or report_missing(origin)
+    return "report" if due else "drift"
 
 
 def build(log):
