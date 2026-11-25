@@ -10,6 +10,7 @@ returns a Series indexed by `time`. Rain returns a probability, wind direction
 returns degrees. LSTM rows without a full 24h window are simply absent.
 """
 import json
+import shutil
 from pathlib import Path
 
 import joblib
@@ -98,12 +99,36 @@ def predict(folder, df):
     raise ValueError(f"unknown model kind: {kind}")
 
 
-def load_registry_models(project):
+def check_folder(folder):
+    d = Path(folder)
+    kind = manifest(d)["kind"]
+    if kind == "sklearn":
+        joblib.load(d / "model.joblib")
+    elif kind == "lstm":
+        import torch
+
+        torch.load(d / "lstm.pt")
+        json.loads((d / "lstm_meta.json").read_text())
+
+
+def load_registry_models(project, tries=3):
     mr = project.get_model_registry()
     folders = {}
     for tgt in TARGETS:
-        models = mr.get_models("best_" + tgt.removeprefix("target_"))
-        folders[tgt] = max(models, key=lambda m: m.version).download()
+        name = "best_" + tgt.removeprefix("target_")
+        model = max(mr.get_models(name), key=lambda m: m.version)
+        for attempt in range(1, tries + 1):
+            folder = model.download()
+            try:
+                check_folder(folder)
+                break
+            except Exception as e:
+                print(f"{name} v{model.version} download unusable ({type(e).__name__}), attempt {attempt}/{tries}")
+                parent = Path(folder).parent
+                shutil.rmtree(parent if parent.name == str(model.version) else folder, ignore_errors=True)
+                if attempt == tries:
+                    raise
+        folders[tgt] = folder
     return folders
 
 

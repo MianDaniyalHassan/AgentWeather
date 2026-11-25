@@ -38,7 +38,7 @@
     "precipitation_roll_6h",
     "precipitation_roll_24h"
   ],
-  "trained_at": 1795425762,
+  "trained_at": 1795595660,
   "kind": "lstm",
   "rain_threshold": 0.05
 }

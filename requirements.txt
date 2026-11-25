@@ -1,7 +1,7 @@
 pandas
 requests
 python-dotenv
-scikit-learn
+scikit-learn==1.9.1
 hopsworks[python]
 langgraph
 langchain-groq

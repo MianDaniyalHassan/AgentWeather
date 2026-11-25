@@ -38,6 +38,6 @@
     "precipitation_roll_6h",
     "precipitation_roll_24h"
   ],
-  "trained_at": 1795425456,
+  "trained_at": 1795595628,
   "kind": "sklearn"
 }
