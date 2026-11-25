@@ -58,7 +58,16 @@ def check(metric, drift_type, score, threshold):
     }
 
 
+def latest(df, keys):
+    for col in ("ingested_at", "time"):
+        if col in df.columns:
+            df = df.sort_values(col)
+            break
+    return df.drop_duplicates(keys, keep="last")
+
+
 def data_drift(history, ref):
+    ref = latest(ref, ["feature", "month"])
     live = history.tail(DATA_WINDOW_H)
     share = live["time"].dt.month.value_counts(normalize=True)
     rows = []
@@ -77,6 +86,7 @@ def data_drift(history, ref):
 
 
 def model_drift(history, ledger, val_err):
+    ledger = latest(ledger, ["time", "metric"])
     since = history["time"].max() - pd.Timedelta(hours=MODEL_WINDOW_H)
     led = ledger[ledger["time"] > since]
     rows, short = [], []
